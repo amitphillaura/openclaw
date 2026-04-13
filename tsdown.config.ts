@@ -160,7 +160,12 @@ export default defineConfig([
     // and bundled hooks in one graph so runtime singletons are emitted once.
     entry: buildUnifiedDistEntries(),
     deps: {
-      neverBundle: ["@lancedb/lancedb", "@matrix-org/matrix-sdk-crypto-nodejs", "matrix-js-sdk"],
+      neverBundle: [
+        "@lancedb/lancedb",
+        "@matrix-org/matrix-sdk-crypto-nodejs",
+        "@whiskeysockets/baileys",
+        "matrix-js-sdk",
+      ],
     },
   }),
 ]);

@@ -12,6 +12,7 @@ import {
 } from "../../config/config.js";
 import { formatConfigIssueLines } from "../../config/issue-format.js";
 import { asResolvedSourceConfig, asRuntimeConfig } from "../../config/materialize.js";
+import { resolveGatewayInstallEntrypoint } from "../../daemon/gateway-entrypoint.js";
 import { resolveGatewayService } from "../../daemon/service.js";
 import { nodeVersionSatisfiesEngine } from "../../infra/runtime-guard.js";
 import {
@@ -42,7 +43,6 @@ import { runCommandWithTimeout } from "../../process/exec.js";
 import { defaultRuntime } from "../../runtime.js";
 import { stylePromptMessage } from "../../terminal/prompt-style.js";
 import { theme } from "../../terminal/theme.js";
-import { pathExists } from "../../utils.js";
 import { replaceCliName, resolveCliName } from "../cli-name.js";
 import { formatCliCommand } from "../command-format.js";
 import { installCompletion } from "../completion-cli.js";
@@ -106,18 +106,6 @@ const UPDATE_QUIPS = [
 
 function pickUpdateQuip(): string {
   return UPDATE_QUIPS[Math.floor(Math.random() * UPDATE_QUIPS.length)] ?? "Update complete.";
-}
-
-function resolveGatewayInstallEntrypointCandidates(root?: string): string[] {
-  if (!root) {
-    return [];
-  }
-  return [
-    path.join(root, "dist", "entry.js"),
-    path.join(root, "dist", "entry.mjs"),
-    path.join(root, "dist", "index.js"),
-    path.join(root, "dist", "index.mjs"),
-  ];
 }
 
 function formatCommandFailure(stdout: string, stderr: string): string {
@@ -260,11 +248,9 @@ async function refreshGatewayServiceEnv(params: {
     args.push("--json");
   }
 
-  for (const candidate of resolveGatewayInstallEntrypointCandidates(params.result.root)) {
-    if (!(await pathExists(candidate))) {
-      continue;
-    }
-    const res = await runCommandWithTimeout([resolveNodeRunner(), candidate, ...args], {
+  const entrypoint = await resolveGatewayInstallEntrypoint(params.result.root);
+  if (entrypoint) {
+    const res = await runCommandWithTimeout([resolveNodeRunner(), entrypoint, ...args], {
       cwd: params.result.root,
       env: resolveServiceRefreshEnv(process.env, params.invocationCwd),
       timeoutMs: SERVICE_REFRESH_TIMEOUT_MS,
@@ -273,7 +259,7 @@ async function refreshGatewayServiceEnv(params: {
       return;
     }
     throw new Error(
-      `updated install refresh failed (${candidate}): ${formatCommandFailure(res.stdout, res.stderr)}`,
+      `updated install refresh failed (${entrypoint}): ${formatCommandFailure(res.stdout, res.stderr)}`,
     );
   }
 
@@ -400,8 +386,8 @@ async function runPackageInstallUpdate(params: {
         stdoutTail: null,
       });
     }
-    const entryPath = path.join(verifiedPackageRoot, "dist", "entry.js");
-    if (await pathExists(entryPath)) {
+    const entryPath = await resolveGatewayInstallEntrypoint(verifiedPackageRoot);
+    if (entryPath) {
       const doctorStep = await runUpdateStep({
         name: `${CLI_NAME} doctor`,
         argv: [resolveNodeRunner(), entryPath, "doctor", "--non-interactive"],

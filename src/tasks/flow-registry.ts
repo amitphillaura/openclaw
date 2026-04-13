@@ -39,17 +39,7 @@ function resolveFlowBlockedSummary(
 }
 
 type FlowRecordPatch = Partial<
-  Pick<
-    FlowRecord,
-    | "status"
-    | "notifyPolicy"
-    | "goal"
-    | "currentStep"
-    | "blockedTaskId"
-    | "blockedSummary"
-    | "updatedAt"
-    | "endedAt"
-  >
+  Pick<FlowRecord, "status" | "notifyPolicy" | "goal" | "updatedAt">
 > & {
   currentStep?: string | null;
   blockedTaskId?: string | null;
@@ -259,7 +249,7 @@ export function syncFlowFromTask(
     terminalFlowStatus === "failed" ||
     terminalFlowStatus === "cancelled" ||
     terminalFlowStatus === "lost";
-  return updateFlowRecordById(flowId, {
+  const patch: FlowRecordPatch = {
     status: terminalFlowStatus,
     notifyPolicy: task.notifyPolicy,
     goal: resolveFlowGoal(task),
@@ -267,12 +257,9 @@ export function syncFlowFromTask(
     blockedSummary:
       terminalFlowStatus === "blocked" ? (resolveFlowBlockedSummary(task) ?? null) : null,
     updatedAt: task.lastEventAt ?? Date.now(),
-    ...(isTerminal
-      ? {
-          endedAt: task.endedAt ?? task.lastEventAt ?? Date.now(),
-        }
-      : { endedAt: null }),
-  });
+    endedAt: isTerminal ? (task.endedAt ?? task.lastEventAt ?? Date.now()) : null,
+  };
+  return updateFlowRecordById(flowId, patch);
 }
 
 export function getFlowById(flowId: string): FlowRecord | undefined {
